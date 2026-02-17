@@ -1,0 +1,9 @@
+{
+  "ers_files": [
+    "data/raw/biotech-crops-all-tables-2024.csv"
+  ],
+  "usgs_files": [
+    "data/raw/le_usgs_presticide_use.txt"
+  ],
+  "output_file": "data/processed/merged_ers_usgs.csv"
+}

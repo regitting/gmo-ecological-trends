@@ -20,7 +20,7 @@ def ingest_ers_adoption(csv_path: str) -> pd.DataFrame:
     Ingest USDA ERS GMO adoption data.
     Expected columns: Attribute, State, Year, Value
     """
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, encoding="cp1252")
     df.columns = [c.strip().lower() for c in df.columns]
 
     df = df.rename(columns={"value": "adoption_percent"})
