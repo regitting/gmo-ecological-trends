@@ -56,7 +56,7 @@ You do not need to know computer science to run this, but the steps must be foll
     cd Documents\GitHub\gmo-ecological-trends
 
 3. Install dependencies:
-```bash
+```bat
 python -m pip install -r requirements.txt
 ```
 
@@ -75,7 +75,7 @@ Wait until installation finishes.
 Open `config.json` in a text editor.
 
 Example:
-```bash
+```bat
 {
 "ers_files": [
 "data/raw/biotech-crops-all-tables-2024.csv"
@@ -97,12 +97,12 @@ When you change data:
 ## Step 5: Build the merged dataset
 
 In Command Prompt:
-```bash
+```bat
 python src\wrangle.py
 ```
 
 If successful, you will see:
-```bash
+```bat
 Saved merged dataset: (rows, columns)
 ```
 
@@ -114,7 +114,7 @@ data\processed\merged_ers_usgs.csv
 ## Step 6: View graphs and analysis
 
 1. In Command Prompt, run:
-```bash
+```bat
 jupyter notebook
 ```
 2. A browser window will open
