@@ -57,9 +57,10 @@ You do not need to know computer science to run this, but the steps must be foll
 
 3. Install dependencies:
 ```bash
-    python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
-    Wait until installation finishes.
+
+Wait until installation finishes.
 
 ---
 
