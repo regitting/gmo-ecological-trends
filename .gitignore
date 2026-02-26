@@ -7,7 +7,9 @@ __pycache__/
 
 # data
 data/processed/*
+data/analysis/*
 !data/processed/.gitkeep
+!data/analysis/.gitkeep
 
 # environments
 .env

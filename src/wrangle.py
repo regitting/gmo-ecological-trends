@@ -1,87 +1,69 @@
-# src/wrangle.py
-import json
+from __future__ import annotations
+
+from curses.panel import panel
 from pathlib import Path
-
 import pandas as pd
+from . import ingestion
 
-# If you get import errors, switch these to: from src.ingestion import ...
-from ingestion import ingest_ers_adoption, ingest_usgs_pesticide
-from normalization import normalize_state, normalize_crop
-
-
-def load_config(path: str = "config.json") -> dict:
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+ROOT = Path(__file__).resolve().parents[1]
+DATA = ROOT / "data"
+PROCESSED = DATA / "processed"
+ANALYSIS = DATA / "analysis"
 
 
-def build_merged_dataset(ers_paths: list[str], usgs_paths: list[str]) -> pd.DataFrame:
-    # ---- ERS: read + normalize + concat ----
-    ers_frames = []
-    for p in ers_paths:
-        df = ingest_ers_adoption(p)
-        df["state"] = df["state"].apply(normalize_state)
-        df["crop"] = df["crop"].apply(normalize_crop)
-        ers_frames.append(df)
+def load(name: str) -> pd.DataFrame:
+    return pd.read_csv(PROCESSED / name)
 
-    ers = pd.concat(ers_frames, ignore_index=True)
-    ers = ers.dropna(subset=["year", "state", "crop", "adoption_percent"])
 
-    # ---- USGS: read (wide->long happens in ingest) + normalize + concat ----
-    usgs_frames = []
-    for p in usgs_paths:
-        df = ingest_usgs_pesticide(p)
-        # ingest_usgs_pesticide returns columns: Year, State, crop, Compound, Units, pesticide_use
-        df["State"] = df["State"].apply(normalize_state)
-        df["crop"] = df["crop"].apply(normalize_crop)
-        usgs_frames.append(df)
+def build_panel() -> pd.DataFrame:
+    required = [
+        "acreage_yield.csv",
+        "gmo_adoption.csv",
+        "erosion.csv",
+        "pesticides_le.csv",
+    ]
 
-    usgs = pd.concat(usgs_frames, ignore_index=True)
-    usgs = usgs.dropna(subset=["Year", "State", "crop", "pesticide_use"])
+    missing = [f for f in required if not (PROCESSED / f).exists()]
 
-    # ---- Aggregate pesticide use across compounds ----
+    if missing:
+        ingestion.run_all()
+
+    ay = load("acreage_yield.csv")
+    adopt = load("gmo_adoption.csv")
+    erosion = load("erosion.csv")
+    pest = load("pesticides_le.csv")
+
+    panel = ay.merge(adopt, on=["year", "crop"], how="left")
+    panel = panel.merge(erosion, on=["year", "state"], how="left")
+
     pest_total = (
-        usgs.groupby(["Year", "State", "crop"], as_index=False)["pesticide_use"]
+        pest.groupby(["year", "state", "crop"], as_index=False)["pesticide_kg"]
         .sum()
-        .rename(
-            columns={
-                "Year": "year",
-                "State": "state",
-                "pesticide_use": "pesticide_total",
-            }
-        )
+        .rename(columns={"pesticide_kg": "pesticide_kg_total"})
     )
 
-    # ---- Merge on (year, state, crop) ----
-    merged = ers.merge(pest_total, on=["year", "state", "crop"], how="inner")
+    panel = panel.merge(pest_total, on=["year", "state", "crop"], how="left")
+    panel["pesticide_kg_per_ha"] = panel["pesticide_kg_total"] / panel["hectares"]
 
-    return merged
+    if "ht_pct" in panel.columns:
+        panel["ht_hectares_est"] = panel["hectares"] * (panel["ht_pct"] / 100.0)
+    if "ir_pct" in panel.columns:
+        panel["ir_hectares_est"] = panel["hectares"] * (panel["ir_pct"] / 100.0)
 
+    panel = panel[(panel["year"] >= 2000) & (panel["year"] <= 2019)]
 
-def main() -> None:
-    cfg = load_config("config.json")
+    panel_collapsed = (
+        panel
+        .groupby(["year", "state", "crop"], as_index=False)
+        .mean(numeric_only=True)
+    )
 
-    ers_files = cfg.get("ers_files", [])
-    usgs_files = cfg.get("usgs_files", [])
-    output_file = cfg.get("output_file", "data/processed/merged_ers_usgs.csv")
-
-    if not ers_files:
-        raise ValueError("config.json: 'ers_files' is empty")
-    if not usgs_files:
-        raise ValueError("config.json: 'usgs_files' is empty")
-
-    # Optional: fail fast if a path is wrong
-    for p in ers_files + usgs_files:
-        if not Path(p).exists():
-            raise FileNotFoundError(f"File not found: {p}")
-
-    merged = build_merged_dataset(ers_files, usgs_files)
-
-    out = Path(output_file)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_csv(out, index=False)
-
-    print(f"Saved merged dataset: {merged.shape} -> {out}")
+    panel.to_csv(PROCESSED / "panel.csv", index=False)
+    panel_collapsed.to_csv(ANALYSIS / "panel_collapsed.csv", index=False)
+    
+    return panel
 
 
 if __name__ == "__main__":
-    main()
+    df = build_panel()
+    print(f"panel.csv written: {len(df)} rows")
